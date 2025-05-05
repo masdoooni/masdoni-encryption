@@ -76,10 +76,16 @@ def rsa_verify_signature(message: bytes, signature: bytes, public_key):
 def tab1_keygen():
     st.header("🔐 RSA Key Pair Generator")
     key_size = st.selectbox("Pilih panjang kunci (bit):", [1024, 2048, 4096], index=1)
+    
+    if 'generated_keys' not in st.session_state:
+        st.session_state['generated_keys'] = None
+
     if st.button("🔁 Generate Key Pair"):
         private_key, public_key = generate_rsa_keys(key_size)
-        st.success(f"RSA {key_size}-bit key pair berhasil dibuat!")
+        st.session_state['generated_keys'] = (private_key, public_key)
 
+    if st.session_state['generated_keys']:
+        private_key, public_key = st.session_state['generated_keys']
         with st.expander("🔓 Private Key"):
             st.text_area("Private Key", private_key, height=250)
             st.download_button("⬇️ Download Private Key", private_key, file_name=f"private_key_{key_size}.pem")
@@ -110,15 +116,21 @@ def tab2_encrypt_sign():
         pub_key_file = st.file_uploader("Public Key Penerima (.pem)", type=["pem"], key="pub")
         pub_key_data = pub_key_file.read() if pub_key_file else None
     else:
-        pub_key_text = st.text_area("Tempelkan isi public key (.pem):")
+        pub_key_text = st.text_area("Tempelkan isi public key penerima (.pem):")
         pub_key_data = pub_key_text.encode() if pub_key_text else None
 
-    priv_key_file = st.file_uploader("Private Key Pengirim (.pem)", type=["pem"], key="priv")
+    priv_method = st.radio("Private Key Pengirim:", ["Upload File", "Paste Manual"])
+    if priv_method == "Upload File":
+        priv_key_file = st.file_uploader("Private Key Pengirim (.pem)", type=["pem"], key="priv")
+        priv_key_data = priv_key_file.read() if priv_key_file else None
+    else:
+        priv_key_text = st.text_area("Tempelkan isi private key pengirim (.pem):")
+        priv_key_data = priv_key_text.encode() if priv_key_text else None
 
     if st.button("🔒 Enkripsi & Tanda Tangan"):
-        if message_bytes and priv_key_file and pub_key_data:
+        if message_bytes and priv_key_data and pub_key_data:
             public_key = serialization.load_pem_public_key(pub_key_data)
-            private_key = serialization.load_pem_private_key(priv_key_file.read(), password=None)
+            private_key = serialization.load_pem_private_key(priv_key_data, password=None)
 
             aes_key = get_random_bytes(32)
             iv = get_random_bytes(16)
@@ -195,7 +207,7 @@ def tab3_decrypt_verify():
         else:
             st.warning("Mohon upload file .enc dan private key Anda.")
 
-# Streamlit app with sidebar
+# Sidebar router
 tab = st.sidebar.radio("Navigasi", ["🔐 Generate Key", "✉️ Kirim Pesan", "📥 Terima Pesan"])
 
 if tab == "🔐 Generate Key":
