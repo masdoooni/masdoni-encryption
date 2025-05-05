@@ -7,7 +7,6 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from Crypto.Random import get_random_bytes
 import base64
 import io
-import ast
 
 # Utility functions
 
@@ -90,14 +89,14 @@ def tab1_keygen():
             st.code(private_pem)
             st.download_button("⬇️ Download Private Key", private_pem, file_name=f"private_key_{key_size}.pem")
             st.markdown(
-                f"<button onclick="navigator.clipboard.writeText(`{private_pem}`)">📋 Copy Private Key</button>",
+                f'''<button onclick="navigator.clipboard.writeText(`{private_pem}`)">📋 Copy Private Key</button>''',
                 unsafe_allow_html=True
             )
         with st.expander("🔑 Public Key"):
             st.code(public_pem)
             st.download_button("⬇️ Download Public Key", public_pem, file_name=f"public_key_{key_size}.pem")
             st.markdown(
-                f"<button onclick="navigator.clipboard.writeText(`{public_pem}`)">📋 Copy Public Key</button>",
+                f'''<button onclick="navigator.clipboard.writeText(`{public_pem}`)">📋 Copy Public Key</button>''',
                 unsafe_allow_html=True
             )
         st.info("💡 Simpan private key di tempat aman dan jangan dibagikan.")
@@ -168,7 +167,7 @@ def tab2_encrypt_sign():
 
 # Tab 3: Decrypt + Verify
 def tab3_decrypt_verify():
-    st.header("📥 Terima Pesan Aman (Decrypt & Verify)")
+    st.header("📥 Terima Pesan Aman (Decrypt + Verify)")
     input_mode = st.radio("Pilih input terenkripsi:", ["Upload File .enc", "Paste Encrypted Text"])
     enc_data = None
     enc_filename = None
@@ -182,23 +181,23 @@ def tab3_decrypt_verify():
         enc_data = st.text_area("Paste encrypted JSON:")
 
     # Private key recipient
-    priv_method = st.radio("Private Key Anda:", ["Upload File", "Paste Manual"])
+    priv_method = st.radio("Private Key Anda:", ["Upload File", "Paste Manual"], key="priv3_method")
     if priv_method == "Upload File":
         priv_file = st.file_uploader("Private Key (.pem)", type=["pem"], key="priv3")
         priv_data = priv_file.read() if priv_file else None
     else:
-        priv_text = st.text_area("Paste isi private key (.pem):")
+        priv_text = st.text_area("Paste isi private key (.pem):", key="priv3_text")
         priv_data = priv_text.encode() if priv_text else None
 
     # Public key sender (optional)
-    pub_opt = st.radio("Public Key Pengirim (opsional):", ["Tidak diberikan", "Upload File", "Paste Manual"])
+    pub_opt = st.radio("Public Key Pengirim (opsional):", ["Tidak diberikan", "Upload File", "Paste Manual"], key="pub3_method")
     pub_data = None
     if pub_opt == "Upload File":
         pubf = st.file_uploader("Public Key (.pem)", type=["pem"], key="pub3")
-        if pubf: pub_data = pubf.read()
+        pub_data = pubf.read() if pubf else None
     elif pub_opt == "Paste Manual":
-        pubt = st.text_area("Paste isi public key pengirim (.pem):")
-        if pubt: pub_data = pubt.encode()
+        pubt = st.text_area("Paste isi public key pengirim (.pem):", key="pub3_text")
+        pub_data = pubt.encode() if pubt else None
 
     if st.button("🔓 Dekripsi & Verifikasi"):
         if enc_data and priv_data:
@@ -215,7 +214,7 @@ def tab3_decrypt_verify():
 
                 st.success("✅ Pesan berhasil didekripsi!")
 
-                # Verify signature
+                # Signature verification
                 if pub_data:
                     try:
                         public_key = serialization.load_pem_public_key(pub_data)
@@ -231,8 +230,7 @@ def tab3_decrypt_verify():
                     text = decrypted.decode()
                     st.text_area("📝 Pesan Asli:", text, height=250)
                 except:
-                    # file
-                    name = enc_filename.rsplit(".enc",1)[0] if enc_filename else "decrypted_file"
+                    name = enc_filename.rsplit(".enc",1)[0] + "_decrypted"
                     st.download_button("⬇️ Download Decrypted File", decrypted, file_name=name)
             except Exception as e:
                 st.error(f"Gagal memproses: {e}")
