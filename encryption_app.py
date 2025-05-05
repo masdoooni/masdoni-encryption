@@ -156,10 +156,21 @@ def tab2_encrypt_sign():
                 st.download_button("⬇️ Download File Terenkripsi", memfile, file_name=filename + ".enc")
 
 
+
 def tab3_decrypt_verify():
     st.header("📥 Terima Pesan (Decrypt + Optional Verify)")
 
-    input_text = st.text_area("Tempelkan pesan terenkripsi (1-line format):")
+    input_mode = st.radio("Pilih input terenkripsi:", ["Teks", "File"])
+    encrypted_input = ""
+    uploaded_filename = "decrypted_output"
+
+    if input_mode == "Teks":
+        encrypted_input = st.text_area("Tempelkan pesan terenkripsi (1-line format):")
+    else:
+        uploaded_file = st.file_uploader("Upload file terenkripsi (.enc)", type=["enc"])
+        if uploaded_file:
+            encrypted_input = uploaded_file.read().decode()
+            uploaded_filename = uploaded_file.name.replace(".enc", "")
 
     priv_method = st.radio("Private Key Anda:", ["Upload File", "Paste Manual"])
     if priv_method == "Upload File":
@@ -170,7 +181,7 @@ def tab3_decrypt_verify():
         priv_key_data = priv_key_text.encode() if priv_key_text else None
 
     st.markdown("### (Opsional) Public Key Pengirim")
-    pub_method = st.radio("Pilih metode input:", ["Tidak Diisi", "Upload File", "Paste Manual"])
+    pub_method = st.radio("Pilih metode input:", ["Upload File", "Paste Manual", "Tidak Diisi"], index=0)
     pub_key_data = None
 
     if pub_method == "Upload File":
@@ -181,9 +192,9 @@ def tab3_decrypt_verify():
         pub_key_data = pub_key_text.encode() if pub_key_text else None
 
     if st.button("🔓 Dekripsi"):
-        if input_text and priv_key_data:
+        if encrypted_input and priv_key_data:
             try:
-                parts = input_text.strip().split(".")
+                parts = encrypted_input.strip().split(".")
                 if len(parts) != 3:
                     st.error("❌ Format terenkripsi tidak valid.")
                     return
@@ -198,11 +209,12 @@ def tab3_decrypt_verify():
                 decrypted = decrypt_message_aes(encrypted_message, aes_key, iv)
 
                 st.success("✅ Pesan berhasil didekripsi!")
+
                 try:
-                    st.text_area("📄 Pesan Terdekripsi", decrypted.decode(), height=300)
+                    decrypted_text = decrypted.decode()
+                    st.text_area("📄 Pesan Terdekripsi", decrypted_text, height=300)
                 except:
-                    st.info("📎 Konten bukan teks. Download tersedia.")
-                    st.download_button("⬇️ Download File Terdekripsi", decrypted, file_name="decrypted_output")
+                    st.download_button("⬇️ Download File Terdekripsi", decrypted, file_name=uploaded_filename)
 
                 if pub_key_data:
                     try:
