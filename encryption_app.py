@@ -22,30 +22,25 @@ def generate_rsa_keys(key_size: int):
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo
     )
-    return private_pem.decode(), public_pem.decode()
 
 def encrypt_message_aes(message: bytes, key: bytes, iv: bytes):
     cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
     encryptor = cipher.encryptor()
     pad_len = 16 - len(message) % 16
     padded = message + bytes([pad_len] * pad_len)
-    return encryptor.update(padded) + encryptor.finalize()
 
 def decrypt_message_aes(encrypted: bytes, key: bytes, iv: bytes):
     cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
     decryptor = cipher.decryptor()
     padded = decryptor.update(encrypted) + decryptor.finalize()
     pad_len = padded[-1]
-    return padded[:-pad_len]
 
 def rsa_encrypt_key(key_iv: bytes, public_key):
-    return public_key.encrypt(
         key_iv,
         padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
     )
 
 def rsa_decrypt_key(encrypted_key: bytes, private_key):
-    return private_key.decrypt(
         encrypted_key,
         padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
     )
@@ -54,7 +49,6 @@ def rsa_sign_message(message: bytes, private_key):
     digest = hashes.Hash(hashes.SHA256())
     digest.update(message)
     hashed = digest.finalize()
-    return private_key.sign(
         hashed,
         padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
         hashes.SHA256()
@@ -141,9 +135,6 @@ def tab2_encrypt_sign():
             signature = rsa_sign_message(message_bytes, private_key)
 
             payload = {
-                "encrypted_key": base64.b64encode(encrypted_key).decode(),
-                "signature": base64.b64encode(signature).decode(),
-                "encrypted_message": base64.b64encode(encrypted_msg).decode()
             }
 
             
@@ -169,7 +160,7 @@ def tab3_decrypt_verify():
     encrypted_data = None
 
     
-        if input_mode == "Teks":
+    if input_mode == "Teks":
         encrypted_text = st.text_area("Tempelkan pesan terenkripsi (dari hasil Tab 2):")
         if encrypted_text:
             try:
@@ -185,13 +176,19 @@ def tab3_decrypt_verify():
             except Exception as e:
                 st.error(f"❌ Gagal memproses input terenkripsi: {str(e)}")
                 return
-                        "encrypted_key": parts[0],
-                        "signature": parts[1],
-                        "encrypted_message": parts[2]
+        encrypted_text = st.text_area("Tempelkan pesan terenkripsi (dari hasil Tab 2):")
+        if encrypted_text:
+            try:
+                parts = encrypted_text.split("|||")
+                if len(parts) != 3:
+                    st.error("❌ Format terenkripsi tidak valid. Harus terdiri dari 3 bagian dipisahkan dengan '|||'.")
+                encrypted_data = {
+                }
+            except Exception as e:
+                st.error(f"❌ Gagal memproses input terenkripsi: {str(e)}")
                     }
                 except Exception as e:
                     st.error(f"❌ Gagal memproses input terenkripsi: {str(e)}")
-                    return
 
     else:
         uploaded_enc_file = st.file_uploader("Upload file terenkripsi (.enc)", type=["enc"])
@@ -219,9 +216,6 @@ def tab3_decrypt_verify():
             private_key = serialization.load_pem_private_key(priv_key_data, password=None)
             public_key = serialization.load_pem_public_key(pub_key_data)
 
-            encrypted_key = base64.b64decode(encrypted_data["encrypted_key"])
-            signature = base64.b64decode(encrypted_data["signature"])
-            encrypted_message = base64.b64decode(encrypted_data["encrypted_message"])
 
             key_iv = rsa_decrypt_key(encrypted_key, private_key)
             aes_key, iv = key_iv[:32], key_iv[32:]
@@ -232,7 +226,22 @@ def tab3_decrypt_verify():
                 rsa_verify_signature(decrypted, signature, public_key)
                 st.success("✅ Pesan berhasil diverifikasi dan didekripsi!")
 
-                if input_mode == "Teks":
+    if input_mode == "Teks":
+        encrypted_text = st.text_area("Tempelkan pesan terenkripsi (dari hasil Tab 2):")
+        if encrypted_text:
+            try:
+                parts = encrypted_text.split("|||")
+                if len(parts) != 3:
+                    st.error("❌ Format terenkripsi tidak valid. Harus terdiri dari 3 bagian dipisahkan dengan '|||'.")
+                    return
+                encrypted_data = {
+                    "encrypted_key": parts[0],
+                    "signature": parts[1],
+                    "encrypted_message": parts[2]
+                }
+            except Exception as e:
+                st.error(f"❌ Gagal memproses input terenkripsi: {str(e)}")
+                return
                     try:
                         st.text_area("📄 Pesan Terdekripsi", decrypted.decode(), height=300)
                     except:
