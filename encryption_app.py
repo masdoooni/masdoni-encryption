@@ -146,9 +146,12 @@ def tab2_encrypt_sign():
                 "encrypted_message": base64.b64encode(encrypted_msg).decode()
             }
 
+            
             if input_mode == "Teks":
                 st.success("✅ Pesan berhasil dienkripsi dan ditandatangani!")
-                st.text_area("📦 Encrypted Message (JSON)", value=str(payload), height=300)
+                encrypted_output = f"{base64.b64encode(encrypted_key).decode()}|||{base64.b64encode(signature).decode()}|||{base64.b64encode(encrypted_msg).decode()}"
+                st.text_area("📦 Encrypted Message", value=encrypted_output, height=300)
+
             else:
                 enc_filename = f"{filename}.enc"
                 memfile = io.BytesIO()
@@ -165,10 +168,24 @@ def tab3_decrypt_verify():
     input_mode = st.radio("Pilih input terenkripsi:", ["Teks", "File"])
     encrypted_data = None
 
-    if input_mode == "Teks":
-        encrypted_text = st.text_area("Tempelkan pesan terenkripsi (JSON):")
-        if encrypted_text:
-            encrypted_data = ast.literal_eval(encrypted_text)
+    
+        if input_mode == "Teks":
+            encrypted_text = st.text_area("Tempelkan pesan terenkripsi (dari hasil Tab 2):")
+            if encrypted_text:
+                try:
+                    parts = encrypted_text.split("|||")
+                    if len(parts) != 3:
+                        st.error("❌ Format terenkripsi tidak valid. Harus terdiri dari 3 bagian dipisahkan dengan '|||'.")
+                        return
+                    encrypted_data = {
+                        "encrypted_key": parts[0],
+                        "signature": parts[1],
+                        "encrypted_message": parts[2]
+                    }
+                except Exception as e:
+                    st.error(f"❌ Gagal memproses input terenkripsi: {str(e)}")
+                    return
+
     else:
         uploaded_enc_file = st.file_uploader("Upload file terenkripsi (.enc)", type=["enc"])
         if uploaded_enc_file:
