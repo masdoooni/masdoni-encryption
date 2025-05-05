@@ -1,4 +1,30 @@
 
+def tab1_keygen():
+    st.header("🔐 RSA Key Pair Generator")
+    key_size = st.selectbox("Pilih panjang kunci (bit):", [1024, 2048, 4096], index=1)
+    
+    if 'generated_keys' not in st.session_state:
+        st.session_state['generated_keys'] = None
+
+    if st.button("🔁 Generate Key Pair"):
+        private_key, public_key = generate_rsa_keys(key_size)
+        st.session_state['generated_keys'] = (private_key, public_key)
+
+    if st.session_state['generated_keys']:
+        private_key, public_key = st.session_state['generated_keys']
+        with st.expander("🔓 Private Key"):
+            st.text_area("Private Key", private_key, height=250)
+            st.download_button("⬇️ Download Private Key", private_key, file_name=f"private_key_{key_size}.pem")
+            st.button("📋 Salin Private Key", on_click=lambda: st.session_state.update({"copy_private": private_key}))
+
+        with st.expander("🔑 Public Key"):
+            st.text_area("Public Key", public_key, height=250)
+            st.download_button("⬇️ Download Public Key", public_key, file_name=f"public_key_{key_size}.pem")
+            st.button("📋 Salin Public Key", on_click=lambda: st.session_state.update({"copy_public": public_key}))
+
+        st.info("💡 Simpan private key di tempat aman dan jangan dibagikan ke siapa pun.")
+
+
 import streamlit as st
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
@@ -185,10 +211,13 @@ def tab3_decrypt_verify():
             except Exception as e:
                 st.error(f"❌ Terjadi kesalahan: {str(e)}")
 
-# Sidebar Navigation
-tab = st.sidebar.radio("Navigasi", ["✉️ Kirim Pesan", "📥 Terima Pesan"])
 
-if tab == "✉️ Kirim Pesan":
+# Sidebar Navigation
+tab = st.sidebar.radio("Navigasi", ["🔐 Generate Key", "✉️ Kirim Pesan", "📥 Terima Pesan"])
+
+if tab == "🔐 Generate Key":
+    tab1_keygen()
+elif tab == "✉️ Kirim Pesan":
     tab2_encrypt_sign()
 elif tab == "📥 Terima Pesan":
     tab3_decrypt_verify()
