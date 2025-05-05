@@ -1,12 +1,13 @@
-
 import streamlit as st
-import json
+import streamlit.components.v1 as components
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from Crypto.Random import get_random_bytes
 import base64
 import io
+import json
+import os
 
 # Utility functions
 
@@ -24,12 +25,14 @@ def generate_rsa_keys(key_size: int):
     )
     return private_pem.decode(), public_pem.decode()
 
+
 def encrypt_message_aes(message: bytes, key: bytes, iv: bytes):
     cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
     encryptor = cipher.encryptor()
     pad_len = 16 - len(message) % 16
     padded = message + bytes([pad_len] * pad_len)
     return encryptor.update(padded) + encryptor.finalize()
+
 
 def decrypt_message_aes(encrypted: bytes, key: bytes, iv: bytes):
     cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
@@ -38,17 +41,20 @@ def decrypt_message_aes(encrypted: bytes, key: bytes, iv: bytes):
     pad_len = padded[-1]
     return padded[:-pad_len]
 
+
 def rsa_encrypt_key(key_iv: bytes, public_key):
     return public_key.encrypt(
         key_iv,
         padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
     )
 
+
 def rsa_decrypt_key(encrypted_key: bytes, private_key):
     return private_key.decrypt(
         encrypted_key,
         padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
     )
+
 
 def rsa_sign_message(message: bytes, private_key):
     digest = hashes.Hash(hashes.SHA256())
@@ -59,6 +65,7 @@ def rsa_sign_message(message: bytes, private_key):
         padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
         hashes.SHA256()
     )
+
 
 def rsa_verify_signature(message: bytes, signature: bytes, public_key):
     digest = hashes.Hash(hashes.SHA256())
@@ -71,77 +78,87 @@ def rsa_verify_signature(message: bytes, signature: bytes, public_key):
         hashes.SHA256()
     )
 
-# Tab 1: Key Generator
+# Tab 1: Key Generation
+
 def tab1_keygen():
     st.header("🔐 RSA Key Pair Generator")
     key_size = st.selectbox("Pilih panjang kunci (bit):", [1024, 2048, 4096], index=1)
 
-    if 'keys' not in st.session_state:
-        st.session_state.keys = None
+    if 'generated_keys' not in st.session_state:
+        st.session_state['generated_keys'] = None
 
     if st.button("🔁 Generate Key Pair"):
-        private_pem, public_pem = generate_rsa_keys(key_size)
-        st.session_state.keys = (private_pem, public_pem)
+        private_key, public_key = generate_rsa_keys(key_size)
+        st.session_state['generated_keys'] = (private_key, public_key)
 
-    if st.session_state.keys:
-        private_pem, public_pem = st.session_state.keys
+    if st.session_state['generated_keys']:
+        private_key, public_key = st.session_state['generated_keys']
+        # Private Key
         with st.expander("🔓 Private Key"):
-            st.code(private_pem)
-            st.download_button("⬇️ Download Private Key", private_pem, file_name=f"private_key_{key_size}.pem")
-            st.markdown(
-                f'''<button onclick="navigator.clipboard.writeText(`{private_pem}`)">📋 Copy Private Key</button>''',
-                unsafe_allow_html=True
-            )
+            st.text_area("Private Key", private_key, height=250)
+            col1, col2 = st.columns(2)
+            with col1:
+                st.download_button("⬇️ Download Private Key", private_key, file_name=f"private_key_{key_size}.pem")
+            with col2:
+                components.html(
+                    f"""
+                    <button onclick="navigator.clipboard.writeText(`{private_key}`)">📋 Copy Private Key</button>
+                    """, height=30
+                )
+        # Public Key
         with st.expander("🔑 Public Key"):
-            st.code(public_pem)
-            st.download_button("⬇️ Download Public Key", public_pem, file_name=f"public_key_{key_size}.pem")
-            st.markdown(
-                f'''<button onclick="navigator.clipboard.writeText(`{public_pem}`)">📋 Copy Public Key</button>''',
-                unsafe_allow_html=True
-            )
-        st.info("💡 Simpan private key di tempat aman dan jangan dibagikan.")
+            st.text_area("Public Key", public_key, height=250)
+            col1, col2 = st.columns(2)
+            with col1:
+                st.download_button("⬇️ Download Public Key", public_key, file_name=f"public_key_{key_size}.pem")
+            with col2:
+                components.html(
+                    f"""
+                    <button onclick="navigator.clipboard.writeText(`{public_key}`)">📋 Copy Public Key</button>
+                    """, height=30
+                )
+        st.info("💡 Simpan private key di tempat aman dan jangan dibagikan ke siapa pun.")
 
 # Tab 2: Encrypt + Sign
+
 def tab2_encrypt_sign():
     st.header("✉️ Kirim Pesan Aman (Encrypt + Sign)")
     input_mode = st.radio("Pilih input:", ["Teks", "File"])
-    message_bytes, filename = None, None
+    message_bytes, filename = None, ""
 
     if input_mode == "Teks":
         message = st.text_area("Tulis pesan:")
         if message:
             message_bytes = message.encode()
     else:
-        uploaded = st.file_uploader("Upload file untuk dienkripsi", type=None)
-        if uploaded:
-            message_bytes = uploaded.read()
-            filename = uploaded.name
+        uploaded_file = st.file_uploader("Upload file untuk dienkripsi")
+        if uploaded_file:
+            message_bytes = uploaded_file.read()
+            filename = uploaded_file.name
 
-    # Public key recipient
-    pub_method = st.radio("Public Key Penerima:", ["Upload File", "Paste Manual"])
+    pub_method = st.radio("Public Key Penerima:", ["Upload File", "Paste Manual"], key="pub_sign")
     if pub_method == "Upload File":
-        pub_file = st.file_uploader("Public Key (.pem)", type=["pem"], key="pub2")
-        pub_data = pub_file.read() if pub_file else None
+        pub_key_file = st.file_uploader("Public Key Penerima (.pem)", type=["pem"], key="pub2")
+        pub_key_data = pub_key_file.read() if pub_key_file else None
     else:
-        pub_text = st.text_area("Paste isi public key (.pem):")
-        pub_data = pub_text.encode() if pub_text else None
+        pub_key_text = st.text_area("Tempelkan isi public key penerima (.pem):")
+        pub_key_data = pub_key_text.encode() if pub_key_text else None
 
-    # Private key sender
-    priv_method = st.radio("Private Key Pengirim:", ["Upload File", "Paste Manual"])
+    priv_method = st.radio("Private Key Pengirim:", ["Upload File", "Paste Manual"], key="priv_sign")
     if priv_method == "Upload File":
-        priv_file = st.file_uploader("Private Key (.pem)", type=["pem"], key="priv2")
-        priv_data = priv_file.read() if priv_file else None
+        priv_key_file = st.file_uploader("Private Key Pengirim (.pem)", type=["pem"], key="priv2_")
+        priv_key_data = priv_key_file.read() if priv_key_file else None
     else:
-        priv_text = st.text_area("Paste isi private key (.pem):")
-        priv_data = priv_text.encode() if priv_text else None
+        priv_key_text = st.text_area("Tempelkan isi private key pengirim (.pem):")
+        priv_key_data = priv_key_text.encode() if priv_key_text else None
 
     if st.button("🔒 Enkripsi & Tanda Tangan"):
-        if message_bytes and pub_data and priv_data:
-            public_key = serialization.load_pem_public_key(pub_data)
-            private_key = serialization.load_pem_private_key(priv_data, password=None)
+        if message_bytes and priv_key_data and pub_key_data:
+            public_key = serialization.load_pem_public_key(pub_key_data)
+            private_key = serialization.load_pem_private_key(priv_key_data, password=None)
+
             aes_key = get_random_bytes(32)
             iv = get_random_bytes(16)
-
             encrypted_msg = encrypt_message_aes(message_bytes, aes_key, iv)
             encrypted_key = rsa_encrypt_key(aes_key + iv, public_key)
             signature = rsa_sign_message(message_bytes, private_key)
@@ -149,96 +166,100 @@ def tab2_encrypt_sign():
             payload = {
                 "encrypted_key": base64.b64encode(encrypted_key).decode(),
                 "signature": base64.b64encode(signature).decode(),
-                "encrypted_message": base64.b64encode(encrypted_msg).decode()
+                "encrypted_message": base64.b64encode(encrypted_msg).decode(),
+                "filename": filename or None
             }
 
             if input_mode == "Teks":
-                st.success("✅ Pesan terenkripsi dan ditandatangani!")
-                st.text_area("Encrypted Payload (JSON)", json.dumps(payload), height=300)
+                st.success("✅ Pesan berhasil dienkripsi dan ditandatangani!")
+                st.text_area("📦 Encrypted Message (JSON)", value=json.dumps(payload, indent=2), height=300)
             else:
-                out_name = filename + ".enc"
-                bio = io.BytesIO()
-                bio.write(json.dumps(payload).encode())
-                bio.seek(0)
-                st.download_button("⬇️ Download File .enc", bio, file_name=out_name)
-            st.info("💡 Kirim data di atas tanpa mengubah isinya. Pastikan penerima punya private key yang sesuai.")
-        else:
-            st.warning("Lengkapi semua input dan kunci.")
+                enc_filename = f"{filename}.enc"
+                memfile = io.BytesIO()
+                memfile.write(json.dumps(payload).encode())
+                memfile.seek(0)
+                st.download_button("⬇️ Download File Terenkripsi", memfile, file_name=enc_filename)
+
+            st.info("💡 Kirim file `.enc` ini ke penerima TANPA mengubah isinya. Pastikan penerima memiliki private key yang sesuai.")
 
 # Tab 3: Decrypt + Verify
+
 def tab3_decrypt_verify():
     st.header("📥 Terima Pesan Aman (Decrypt + Verify)")
-    input_mode = st.radio("Pilih input terenkripsi:", ["Upload File .enc", "Paste Encrypted Text"])
-    enc_data = None
-    enc_filename = None
+    input_mode = st.radio("Pilih input:", ["Teks", "File"], key="input_recv")
+    payload = None
 
-    if input_mode == "Upload File .enc":
-        enc_file = st.file_uploader("Upload .enc file", type=["enc"])
-        if enc_file:
-            enc_filename = enc_file.name
-            enc_data = enc_file.read().decode()
+    if input_mode == "Teks":
+        raw = st.text_area("Tempelkan pesan terenkripsi (JSON):", height=200)
+        if raw:
+            try:
+                payload = json.loads(raw)
+            except Exception as e:
+                st.error(f"Format JSON tidak valid: {e}")
     else:
-        enc_data = st.text_area("Paste encrypted JSON:")
+        uploaded = st.file_uploader("Upload file `.enc`")
+        if uploaded:
+            try:
+                raw = uploaded.read().decode()
+                payload = json.loads(raw)
+            except Exception as e:
+                st.error(f"Gagal membaca file: {e}")
 
-    # Private key recipient
-    priv_method = st.radio("Private Key Anda:", ["Upload File", "Paste Manual"], key="priv3_method")
+    # Private Key for decryption
+    priv_method = st.radio("Private Key (decrypt):", ["Upload File", "Paste Manual"], key="priv_recv")
     if priv_method == "Upload File":
-        priv_file = st.file_uploader("Private Key (.pem)", type=["pem"], key="priv3")
-        priv_data = priv_file.read() if priv_file else None
+        priv_key_file = st.file_uploader("Private Key (.pem)", type=["pem"], key="priv3")
+        priv_key_data = priv_key_file.read() if priv_key_file else None
     else:
-        priv_text = st.text_area("Paste isi private key (.pem):", key="priv3_text")
-        priv_data = priv_text.encode() if priv_text else None
+        priv_key_text = st.text_area("Tempelkan isi private key (.pem):", height=200)
+        priv_key_data = priv_key_text.encode() if priv_key_text else None
 
-    # Public key sender (optional)
-    pub_opt = st.radio("Public Key Pengirim (opsional):", ["Tidak diberikan", "Upload File", "Paste Manual"], key="pub3_method")
-    pub_data = None
-    if pub_opt == "Upload File":
-        pubf = st.file_uploader("Public Key (.pem)", type=["pem"], key="pub3")
-        pub_data = pubf.read() if pubf else None
-    elif pub_opt == "Paste Manual":
-        pubt = st.text_area("Paste isi public key pengirim (.pem):", key="pub3_text")
-        pub_data = pubt.encode() if pubt else None
+    # Public Key for verification
+    pub_method = st.radio("Public Key (verify):", ["Upload File", "Paste Manual"], key="pub_recv")
+    if pub_method == "Upload File":
+        pub_key_file = st.file_uploader("Public Key (.pem)", type=["pem"], key="pub4")
+        pub_key_data = pub_key_file.read() if pub_key_file else None
+    else:
+        pub_key_text = st.text_area("Tempelkan isi public key (.pem):", height=200)
+        pub_key_data = pub_key_text.encode() if pub_key_text else None
 
     if st.button("🔓 Dekripsi & Verifikasi"):
-        if enc_data and priv_data:
+        if payload and priv_key_data and pub_key_data:
             try:
-                payload = json.loads(enc_data)
-                encrypted_key = base64.b64decode(payload["encrypted_key"])
-                signature = base64.b64decode(payload["signature"])
-                encrypted_message = base64.b64decode(payload["encrypted_message"])
+                private_key = serialization.load_pem_private_key(priv_key_data, password=None)
+                public_key = serialization.load_pem_public_key(pub_key_data)
 
-                private_key = serialization.load_pem_private_key(priv_data, password=None)
+                encrypted_key = base64.b64decode(payload["encrypted_key"])
                 key_iv = rsa_decrypt_key(encrypted_key, private_key)
                 aes_key, iv = key_iv[:32], key_iv[32:]
-                decrypted = decrypt_message_aes(encrypted_message, aes_key, iv)
+                encrypted_msg = base64.b64decode(payload["encrypted_message"])
+                decrypted = decrypt_message_aes(encrypted_msg, aes_key, iv)
 
-                st.success("✅ Pesan berhasil didekripsi!")
-
-                # Signature verification
-                if pub_data:
-                    try:
-                        public_key = serialization.load_pem_public_key(pub_data)
-                        rsa_verify_signature(decrypted, signature, public_key)
-                        st.success("✅ Signature VALID")
-                    except:
-                        st.error("❌ Signature INVALID")
-                else:
-                    st.warning("⚠️ Public key pengirim tidak diberikan, verifikasi signature dilewati.")
-
-                # Output decrypted
+                # Verify signature
                 try:
-                    text = decrypted.decode()
-                    st.text_area("📝 Pesan Asli:", text, height=250)
-                except:
-                    name = enc_filename.rsplit(".enc",1)[0] + "_decrypted"
-                    st.download_button("⬇️ Download Decrypted File", decrypted, file_name=name)
-            except Exception as e:
-                st.error(f"Gagal memproses: {e}")
-        else:
-            st.warning("Tambahkan encrypted data dan private key Anda.")
+                    signature = base64.b64decode(payload["signature"])
+                    rsa_verify_signature(decrypted, signature, public_key)
+                    st.success("✅ Signature valid")
+                except Exception:
+                    st.error("❌ Signature tidak valid")
 
-# Sidebar navigation
+                if input_mode == "Teks":
+                    txt = decrypted.decode()
+                    st.text_area("📨 Decrypted Message", txt, height=300)
+                else:
+                    orig_filename = payload.get("filename") or "decrypted_file"
+                    memfile = io.BytesIO()
+                    memfile.write(decrypted)
+                    memfile.seek(0)
+                    st.download_button("⬇️ Download Decrypted File", memfile, file_name=orig_filename)
+
+            except Exception as e:
+                st.error(f"Proses gagal: {e}")
+
+# Sidebar
+
 tab = st.sidebar.radio("Navigasi", ["🔐 Generate Key", "✉️ Kirim Pesan", "📥 Terima Pesan"])
+
 if tab == "🔐 Generate Key":
     tab1_keygen()
 elif tab == "✉️ Kirim Pesan":
