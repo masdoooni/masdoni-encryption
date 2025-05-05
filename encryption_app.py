@@ -170,14 +170,21 @@ def tab3_decrypt_verify():
 
     
         if input_mode == "Teks":
-            encrypted_text = st.text_area("Tempelkan pesan terenkripsi (dari hasil Tab 2):")
-            if encrypted_text:
-                try:
-                    parts = encrypted_text.split("|||")
-                    if len(parts) != 3:
-                        st.error("❌ Format terenkripsi tidak valid. Harus terdiri dari 3 bagian dipisahkan dengan '|||'.")
-                        return
-                    encrypted_data = {
+        encrypted_text = st.text_area("Tempelkan pesan terenkripsi (dari hasil Tab 2):")
+        if encrypted_text:
+            try:
+                parts = encrypted_text.split("|||")
+                if len(parts) != 3:
+                    st.error("❌ Format terenkripsi tidak valid. Harus terdiri dari 3 bagian dipisahkan dengan '|||'.")
+                    return
+                encrypted_data = {
+                    "encrypted_key": parts[0],
+                    "signature": parts[1],
+                    "encrypted_message": parts[2]
+                }
+            except Exception as e:
+                st.error(f"❌ Gagal memproses input terenkripsi: {str(e)}")
+                return
                         "encrypted_key": parts[0],
                         "signature": parts[1],
                         "encrypted_message": parts[2]
