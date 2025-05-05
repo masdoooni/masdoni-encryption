@@ -129,6 +129,7 @@ def tab2_encrypt_sign():
         priv_key_data = priv_key_text.encode() if priv_key_text else None
 
     if st.button("🔒 Enkripsi & Tanda Tangan"):
+
         if message_bytes and priv_key_data and pub_key_data:
             public_key = serialization.load_pem_public_key(pub_key_data)
             private_key = serialization.load_pem_private_key(priv_key_data, password=None)
@@ -142,15 +143,19 @@ def tab2_encrypt_sign():
             enc_key_b64 = base64.b64encode(encrypted_key).decode()
             sig_b64 = base64.b64encode(signature).decode()
             msg_b64 = base64.b64encode(encrypted_msg).decode()
-
             combined = f"{enc_key_b64}.{sig_b64}.{msg_b64}"
 
-            st.success("✅ Pesan berhasil dienkripsi dan ditandatangani!")
-            st.text_area("📦 Encrypted Output (1-line format)", combined, height=200)
+            if input_mode == "Teks":
+                st.success("✅ Pesan berhasil dienkripsi dan ditandatangani!")
+                st.text_area("📦 Encrypted Output (1-line format)", combined, height=200)
+            else:
+                memfile = io.BytesIO()
+                memfile.write(combined.encode())
+                memfile.seek(0)
+                st.success("✅ File berhasil dienkripsi dan ditandatangani!")
+                st.download_button("⬇️ Download File Terenkripsi", memfile, file_name=filename + ".enc")
 
-# Tab 3 akan dibuat di sel berikutnya karena kode terlalu panjang
 
-# Tab 3 - Decrypt and (optional) Verify
 def tab3_decrypt_verify():
     st.header("📥 Terima Pesan (Decrypt + Optional Verify)")
 
